@@ -22,7 +22,7 @@ STEP_MOD = 1000
 MAX_EP_STEPS = 1000
 SAVE_MODELS = False
 LOGGING = False
-USE_GPU = False
+USE_GPU = True
 
 # if LOGGING:
 # 	log_file_name = datetime.datetime.now().strftime("log_%Y_%m_%d_%H_%M_%S.txt")
@@ -30,7 +30,9 @@ USE_GPU = False
 # 	backup = sys.stdout
 # 	sys.stdout = Tee(sys.stdout, log_file)
 
-if USE_GPU: torch.backends.cudnn.benchmark = True
+if USE_GPU:
+	torch.backends.cudnn.benchmark = True
+	torch.set_default_tensor_type(torch.cuda.FloatTensor)
 
 class QNetwork(nn.Module):
 
@@ -59,12 +61,11 @@ class QNetwork(nn.Module):
 
 	def forward(self, x):
 		global USE_GPU
+		x = x.cuda() if USE_GPU else x
 		x = self.conv(x)
 		x = x.view(-1, 64*7*7)
 		x = self.fc(x)
-		return x
-		# x = self.fc(x).cuda() if USE_GPU else self.fc(x)
-		# return x.cuda() if USE_GPU else x
+		return x.cuda() if USE_GPU else x
 
 	def backprop(self, x, y):
 		self.optimizer.zero_grad() # clear gradients
@@ -76,10 +77,8 @@ class QNetwork(nn.Module):
 		return loss.item()
 
 	def predict(self, x):
-		global USE_GPU
 		if type(x) == list: x = np.array(x)
-		x = torch.from_numpy(x).float().cuda() if USE_GPU else \
-			torch.from_numpy(x).float()
+		x = torch.from_numpy(x).float()
 		return self.forward(x)
 
 	def choose_action(self, x):
@@ -118,7 +117,7 @@ def play_episode(env, eb, dqn, i):
 	print("Ep:%g\tSt:%g\tR:%g" % (i, ep_steps, ep_reward), end='')
 
 	while True:
-		env.render()
+		# env.render()
 		# choose action, eps greedy and step
 		action = dqn.choose_action(obs)
 		next_obs, r, done, info = env.step(action)
@@ -168,7 +167,7 @@ eb = ExperienceBuffer(size=EXPERIENCE_BUFFER_SIZE)
 # else:
 # 	dqn = QNetwork(env, lr=0.001, eps=EPSILON_START, decay=EPSILON_DECAY)
 dqn = QNetwork(env, lr=0.001, eps=EPSILON_START, decay=EPSILON_DECAY) #
-# dqn = dqn.cuda() if USE_GPU else dqn
+dqn = dqn.cuda() if USE_GPU else dqn
 summary(dqn, (1, 84, 84))
 # exit(0)
 
